@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Splatoon 3 Rotation Tracker",
+  "version": "1.0",
+  "description": "Tracks and displays current and upcoming level rotations in Splatoon 3",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  "permissions": ["alarms", "storage", "notifications"],
+  "host_permissions": ["https://splatoon3.ink/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: https://splatoon3.ink https://*.splatoon3.ink; connect-src https://splatoon3.ink; font-src 'self';"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  }
+}

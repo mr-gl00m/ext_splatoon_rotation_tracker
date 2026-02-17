@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Splatoon 3 Rotation Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Decorative stickers -->
+    <div class="sticker sticker-small sticker-1"></div>
+    <div class="sticker sticker-medium sticker-2"></div>
+    <div class="sticker sticker-small sticker-3"></div>
+    <div class="sticker sticker-small sticker-4"></div>
+    <div class="sticker sticker-medium sticker-5"></div>
+    <div class="sticker sticker-medium sticker-6"></div>
+    <div class="sticker sticker-small sticker-7"></div>
+    
+    <div class="header">
+      <h1>Splatoon 3 Rotations</h1>
+      <button id="settings-btn" class="gear-button" aria-label="Settings">⚙</button>
+    </div>
+    
+    <div id="splatfest-banner" class="splatfest-banner" style="display: none;"></div>
+
+    <div class="mode-tabs">
+      <button id="regular-tab" class="tab-btn active" data-mode="regular">Regular</button>
+      <button id="anarchy-tab" class="tab-btn" data-mode="anarchy">Anarchy</button>
+      <button id="xbattle-tab" class="tab-btn" data-mode="xbattle">X Battle</button>
+      <button id="challenge-tab" class="tab-btn" data-mode="challenge">Challenge</button>
+      <button id="salmon-tab" class="tab-btn" data-mode="salmon">Salmon Run</button>
+    </div>
+    
+    <div class="rotation-container">
+      <h2>Current Rotation</h2>
+      <div id="current-rotation" class="rotation-data">
+        <div class="loading">Loading current rotation</div>
+      </div>
+      
+      <h2>Next Rotation</h2>
+      <div id="next-rotation" class="rotation-data">
+        <div class="loading">Loading next rotation</div>
+      </div>
+    </div>
+    
+    <!-- Settings Panel (Hidden by default) -->
+    <div id="settings-panel" class="settings-panel">
+      <div class="settings-title">Notification Settings</div>
+      
+      <div class="toggle-group">
+        <div class="toggle-label">
+          <span>Enable all notifications</span>
+          <label class="switch">
+            <input type="checkbox" id="enable-notifications">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="toggle-group">
+        <div style="margin-bottom: 8px; font-size: 14px;">Notify for specific modes:</div>
+
+        <div class="toggle-label">
+          <span>Regular Battle</span>
+          <label class="switch regular-slider">
+            <input type="checkbox" id="notify-regular">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-label">
+          <span>Anarchy Battle</span>
+          <label class="switch anarchy-slider">
+            <input type="checkbox" id="notify-anarchy">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-label">
+          <span>X Battle</span>
+          <label class="switch xbattle-slider">
+            <input type="checkbox" id="notify-xbattle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-label">
+          <span>Salmon Run</span>
+          <label class="switch salmon-slider">
+            <input type="checkbox" id="notify-salmon">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="settings-footer">
+        <button id="close-settings-btn">Close</button>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>Data refreshed: <span id="last-updated">Never</span></p>
+      <button id="refresh-btn">Refresh Now</button>
+    </div>
+  </div>
+  
+  <!-- Load scripts in correct order -->
+  <script src="utils.js"></script>
+  <script src="salmonRun.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
