@@ -22,13 +22,6 @@ A Chrome extension that puts Splatoon 3's current and upcoming map rotations rig
 
 **4-tier image fallback** — Stage images resolve through: mode-specific directory, shared directory, remote API URL, then a data URI placeholder. You'll always see something, even if local images are incomplete.
 
-## Screenshots
-
-<!-- Add screenshots of your extension here -->
-<!-- ![Regular Battle](screenshots/regular.png) -->
-<!-- ![Salmon Run](screenshots/salmon.png) -->
-<!-- ![Settings](screenshots/settings.png) -->
-
 ## Installation
 
 ### Manual (Developer Mode)
@@ -150,3 +143,4 @@ This project is licensed under the MIT License.
 
 - [splatoon3.ink](https://splatoon3.ink/) for the rotation data API
 - Nintendo for creating Splatoon 3
+
