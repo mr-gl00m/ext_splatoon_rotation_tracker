@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 90" fill="#000">
+  <!-- side fins -->
+  <path d="M17 24 Q6 16 2 12 Q5 22 13 33 Z"/>
+  <path d="M43 24 Q54 16 58 12 Q55 22 47 33 Z"/>
+  <!-- mantle / body -->
+  <path d="M30 4 Q49 9 49 37 Q49 54 30 57 Q11 54 11 37 Q11 9 30 4 Z"/>
+  <!-- tentacles -->
+  <path d="M15 52 Q12 70 10 85 Q18 72 23 54 Z"/>
+  <path d="M23 55 Q22 72 21 89 Q28 74 29 55 Z"/>
+  <path d="M37 55 Q38 72 39 89 Q32 74 31 55 Z"/>
+  <path d="M45 52 Q48 70 50 85 Q42 72 37 54 Z"/>
+</svg>
