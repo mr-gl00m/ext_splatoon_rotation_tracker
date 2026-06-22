@@ -25,8 +25,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
   }
 
-  // Initial data fetch with a small delay to ensure everything is loaded
-  setTimeout(fetchAllData, 2000);
+  // Initial data fetch — direct call. setTimeout in an MV3 service worker
+  // is unreliable since the worker can be killed before it fires.
+  fetchAllData();
 });
 
 // Listen for alarm - handles both smart refresh and fallback periodic refresh
@@ -85,33 +86,47 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// Dedupe overlapping callers (alarm + popup message + onInstalled) within a
+// single service-worker lifetime — they all join the same in-flight promise.
+let inFlightFetch = null;
+
+function fetchAllData() {
+  if (!inFlightFetch) {
+    inFlightFetch = _fetchAllData().finally(() => { inFlightFetch = null; });
+  }
+  return inFlightFetch;
+}
+
 /**
  * Fetch the shared API data once and process both battle and Salmon Run data
  * @returns {Promise<boolean>} Success status
  */
-async function fetchAllData() {
+async function _fetchAllData() {
   console.log('--- Starting data fetch cycle ---');
-  try {
-    // Get the state of data *before* the fetch cycle.
-    const result = await chrome.storage.local.get(['rotationData', 'lastUpdated']);
-    const oldRotationData = result.rotationData || null;
+  // Read pre-fetch state once; reused both for notification diffing on success
+  // and for the stale-while-revalidate path on failure.
+  const { rotationData: oldRotationData = null } =
+    await chrome.storage.local.get(['rotationData']);
 
-    // Single API fetch - shared by all processors
+  try {
     const response = await fetch(Utils.API.SCHEDULES);
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     const apiData = await response.json();
 
-    // Process both from the same response - no duplicate network requests
-    const battleData = processRotationData(apiData) || createTestData();
-    const salmonData = SalmonRun.processSalmonRunData(apiData) || SalmonRun.createSalmonRunTestData();
+    const battleData = processRotationData(apiData);
+    const salmonData = SalmonRun.processSalmonRunData(apiData);
 
-    // Merge the results into a single, new data object.
+    // If processing fails for either, treat as a fetch failure so the
+    // catch path falls back to cached data instead of writing fake values.
+    if (!battleData || !salmonData) {
+      throw new Error('API response shape invalid (battle or salmon processor returned null)');
+    }
+
     const newRotationData = {
-      ...battleData, // Contains regular, anarchy, xbattle
-      salmon: salmonData  // Contains current, next for salmon
+      ...battleData, // regular, anarchy, xbattle, challenge, splatfest
+      salmon: salmonData  // current, next
     };
 
-    // Perform a single write to storage.
     await chrome.storage.local.set({
       'rotationData': newRotationData,
       'lastUpdated': new Date().toISOString(),
@@ -119,26 +134,19 @@ async function fetchAllData() {
     });
     console.log('All rotation data updated successfully in a single operation.');
 
-    // Schedule the next smart refresh based on rotation end times
     scheduleNextRefresh(newRotationData);
-
-    // Now, compare the old and new data for notifications.
-    if (newRotationData) {
-      await sendRotationNotifications(newRotationData, oldRotationData);
-    }
+    await sendRotationNotifications(newRotationData, oldRotationData);
 
     return true;
   } catch (error) {
     console.error("Error in fetchAllData cycle:", error);
 
-    // Stale-while-revalidate: Check if we have valid cached data
-    const cached = await chrome.storage.local.get(['rotationData', 'lastUpdated']);
-    if (cached.rotationData && isDataStillValid(cached.rotationData)) {
+    // Stale-while-revalidate using the read we already did at function entry.
+    if (oldRotationData && isDataStillValid(oldRotationData)) {
       console.log('Network failed, using cached data (stale-while-revalidate)');
       await chrome.storage.local.set({ 'isOffline': true });
-      // Schedule a retry in 5 minutes
       chrome.alarms.create('refreshRotations', { delayInMinutes: 5 });
-      return true; // Data is still usable
+      return true;
     }
 
     return false;
@@ -475,61 +483,6 @@ function processSplatfestData(apiDataRoot) {
   }
 
   return null;
-}
-
-/**
- * Create test data as fallback if API fails
- * @returns {Object} Generated rotation data
- */
-function createTestData() {
-  const now = new Date();
-  const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-  const fourHoursLater = new Date(now.getTime() + 4 * 60 * 60 * 1000);
-  
-  return {
-    regular: {
-      current: {
-        startTime: now.toISOString(),
-        endTime: twoHoursLater.toISOString(),
-        rule: { name: "Turf War" },
-        stages: [{ name: "Scorch Gorge" }, { name: "Mahi-Mahi Resort" }]
-      },
-      next: {
-        startTime: twoHoursLater.toISOString(),
-        endTime: fourHoursLater.toISOString(),
-        rule: { name: "Turf War" },
-        stages: [{ name: "Hagglefish Market" }, { name: "MakoMart" }]
-      }
-    },
-    anarchy: {
-      current: {
-        startTime: now.toISOString(),
-        endTime: twoHoursLater.toISOString(),
-        rule: { name: "Splat Zones" },
-        stages: [{ name: "Mincemeat Metalworks" }, { name: "Undertow Spillway" }]
-      },
-      next: {
-        startTime: twoHoursLater.toISOString(),
-        endTime: fourHoursLater.toISOString(),
-        rule: { name: "Tower Control" },
-        stages: [{ name: "Hammerhead Bridge" }, { name: "Museum d'Alfonsino" }]
-      }
-    },
-    xbattle: {
-      current: {
-        startTime: now.toISOString(),
-        endTime: twoHoursLater.toISOString(),
-        rule: { name: "Clam Blitz" },
-        stages: [{ name: "Inkblot Art Academy" }, { name: "Sturgeon Shipyard" }]
-      },
-      next: {
-        startTime: twoHoursLater.toISOString(),
-        endTime: fourHoursLater.toISOString(),
-        rule: { name: "Rainmaker" },
-        stages: [{ name: "Eeltail Alley" }, { name: "Wahoo World" }]
-      }
-    }
-  };
 }
 
 /**

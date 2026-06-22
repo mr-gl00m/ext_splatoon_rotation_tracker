@@ -24,7 +24,7 @@
   /* Common colors */
   --text-color: #ffffff;
   --background-color: #222;
-  --card-background: rgba(0, 0, 0, 0.6);
+  --card-background: rgba(0, 0, 0, 0.75);
   --error-color: #ff3030;
 }
 
@@ -74,50 +74,25 @@ body {
   opacity: 0.15;
 }
 
-/* Mode-specific styling — darker overlays keep the pattern as subtle texture */
+/* Mode-specific styling — flat mode-tinted gradient, no tiled pattern */
 .container.mode-regular {
-  background-color: rgba(33, 133, 43, 0.92);
-  background-image:
-    url('images/battle-bg-pattern-blue.jpg'),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(33, 133, 43, 0.92));
-  background-blend-mode: overlay;
-  background-size: 300px, cover;
+  background: linear-gradient(to bottom, #0f1a12, #1a3a21);
 }
 
 .container.mode-anarchy {
-  background-color: rgba(139, 52, 25, 0.92);
-  background-image:
-    url('images/battle-bg-pattern-blue.jpg'),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(139, 52, 25, 0.92));
-  background-blend-mode: overlay;
-  background-size: 300px, cover;
+  background: linear-gradient(to bottom, #1f0f08, #3a1a10);
 }
 
 .container.mode-xbattle {
-  background-color: rgba(88, 26, 116, 0.92);
-  background-image:
-    url('images/battle-bg-pattern-blue.jpg'),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(88, 26, 116, 0.92));
-  background-blend-mode: overlay;
-  background-size: 300px, cover;
+  background: linear-gradient(to bottom, #140820, #2e1544);
 }
 
 .container.mode-challenge {
-  background-color: rgba(139, 35, 83, 0.92);
-  background-image:
-    url('images/battle-bg-pattern-blue.jpg'),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(139, 35, 83, 0.92));
-  background-blend-mode: overlay;
-  background-size: 300px, cover;
+  background: linear-gradient(to bottom, #1f0a14, #3a1528);
 }
 
 .container.mode-salmon {
-  background-color: rgba(128, 48, 16, 0.92);
-  background-image:
-    url('images/battle-bg-pattern-blue.jpg'),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(128, 48, 16, 0.92));
-  background-blend-mode: overlay;
-  background-size: 300px, cover;
+  background: linear-gradient(to bottom, #1a0a04, #3a1808);
 }
 
 /* Header */
@@ -136,20 +111,21 @@ body {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* Little buddy mascot */
-.header::after {
+/* Little buddy mascot — small corner accent, not behind the title */
+.container::after {
   content: "";
   position: absolute;
-  top: -10px;
-  right: 40px;
-  width: 40px;
-  height: 40px;
+  bottom: 8px;
+  left: 8px;
+  width: 28px;
+  height: 28px;
   background-image: url('images/little-buddy.445c3c88.png');
   background-size: contain;
   background-repeat: no-repeat;
-  z-index: -1;
-  transform: rotate(10deg);
-  opacity: 0.9;
+  transform: rotate(-8deg);
+  opacity: 0.35;
+  z-index: 1;
+  pointer-events: none;
 }
 
 /* Tabs */
@@ -784,7 +760,7 @@ input:checked + .slider:before {
   background-size: contain;
   background-repeat: no-repeat;
   pointer-events: none;
-  opacity: 0.7;
+  opacity: 0.25;
   z-index: 1;
 }
 
@@ -825,56 +801,23 @@ input:checked + .slider:before {
   transform: rotate(5deg);
 }
 
-.sticker-4 {
-  top: 160px;
-  left: 15px;
-  background-image: url('images/sticker-4.png');
-  transform: rotate(-5deg);
-}
-
-/* Add salmon character for salmon run mode */
+/* Salmon character — replaces the mascot in salmon mode */
 .container.mode-salmon::after {
   content: "";
   position: absolute;
-  bottom: -10px;
-  right: -15px;
-  width: 80px;
-  height: 80px;
+  bottom: 4px;
+  right: 4px;
+  width: 48px;
+  height: 48px;
   background-image: url('images/salmon-character.png');
   background-size: contain;
   background-repeat: no-repeat;
-  opacity: 0.8;
+  opacity: 0.4;
   z-index: 1;
   pointer-events: none;
-}
-
-/* Mode-specific stickers that only appear in certain modes */
-.container.mode-regular .sticker-5 {
-  display: block;
-  top: 200px;
-  right: 25px;
-  background-image: url('images/sticker-5.png');
-  transform: rotate(10deg);
-}
-
-.container.mode-anarchy .sticker-6 {
-  display: block;
-  top: 220px;
-  left: 20px;
-  background-image: url('images/sticker-6.png');
-  transform: rotate(-8deg);
-}
-
-.container.mode-xbattle .sticker-7 {
-  display: block;
-  bottom: 80px;
-  right: 15px;
-  background-image: url('images/sticker-7.png');
-  transform: rotate(12deg);
-}
-
-.sticker-5, .sticker-6, .sticker-7 {
-  display: none;
+  transform: none;
+  left: auto;
+  top: auto;
 }
 
 /* Anarchy Series/Open Sub-Modes */
@@ -997,32 +940,14 @@ input:checked + .slider:before {
   100% { transform: rotate(-1deg); }
 }
 
-@keyframes breathing {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
-}
-
-/* Apply animations to stickers */
+/* Apply gentle animation to stickers — slow enough to feel ambient, not distracting */
 .sticker {
-  animation: subtleWobble 8s ease-in-out infinite;
+  animation: subtleWobble 24s ease-in-out infinite;
 }
 
-.sticker-1 { animation-delay: -1s; }
-.sticker-2 { animation-delay: -3s; }
-.sticker-3 { animation-delay: -5s; }
-.sticker-4 { animation-delay: -2s; }
-.sticker-5 { animation-delay: -4s; }
-.sticker-6 { animation-delay: -6s; }
-.sticker-7 { animation-delay: -1.5s; }
-.sticker-8 { animation-delay: -3.5s; }
-.sticker-9 { animation-delay: -5.5s; }
-.sticker-10 { animation-delay: -2.5s; }
-.sticker-12 { animation-delay: -4.5s; }
-
-/* Add breathing animation to the little buddy mascot */
-.header::after {
-  animation: breathing 4s ease-in-out infinite;
-}
+.sticker-1 { animation-delay: -3s; }
+.sticker-2 { animation-delay: -9s; }
+.sticker-3 { animation-delay: -15s; }
 
 
 

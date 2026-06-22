@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Current selected game mode
   let currentMode = 'regular';
   let isFirstLoad = true;
-  let countdownInterval = null;
+  let countdownTimeout = null;
   let refreshCooldownInterval = null;
   let hasTriggeredAutoRefresh = false;
   let isRefreshing = false;
@@ -177,6 +177,66 @@ document.addEventListener('DOMContentLoaded', function() {
     div.className = className;
     div.textContent = text;
     container.appendChild(div);
+  }
+
+  // Where each mode's stage images live on disk. CSP gates remote loads.
+  // The battle modes draw from one identical stage pool, so they all point at
+  // shared/; only Salmon Run has a distinct set of stages.
+  const STAGE_DIR_BY_MODE = {
+    regular: 'shared',
+    anarchy: 'shared',
+    xbattle: 'shared',
+    salmon: 'salmon',
+    challenge: 'shared'
+  };
+
+  /**
+   * Reject API-supplied URLs that aren't HTTPS splatoon3.ink before they
+   * touch the DOM. CSP blocks the load anyway; this is defense in depth.
+   */
+  function safeRemoteUrl(url) {
+    if (!url) return '';
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:' && parsed.hostname.endsWith('splatoon3.ink')) {
+        return parsed.toString();
+      }
+    } catch { /* malformed URL */ }
+    return '';
+  }
+
+  /**
+   * Build a single stage tile (image + name) for any mode.
+   * @param {Object} stageData {name, image} from the rotation
+   * @param {string} mode The logical mode (regular/anarchy/xbattle/salmon/challenge)
+   */
+  function createStageElement(stageData, mode) {
+    const stageEl = document.createElement('div');
+    stageEl.className = 'stage';
+
+    const stageName = stageData?.name || 'Unknown Stage';
+    const stageId = Utils.getStageId(stageName);
+    const dir = STAGE_DIR_BY_MODE[mode] || 'shared';
+
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'stage-img-container';
+
+    const img = new Image();
+    img.className = 'stage-img';
+    img.dataset.stage = stageId;
+    img.dataset.mode = mode;
+    img.dataset.remoteUrl = safeRemoteUrl(stageData?.image);
+    img.alt = stageName;
+    img.src = `images/stages/${dir}/${stageId}.jpg`;
+    imgContainer.appendChild(img);
+    stageEl.appendChild(imgContainer);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'stage-name';
+    nameEl.textContent = stageName;
+    stageEl.appendChild(nameEl);
+
+    return stageEl;
   }
 
   /**
@@ -510,10 +570,7 @@ document.addEventListener('DOMContentLoaded', function() {
       setMessage(elements.nextRotation, 'No upcoming rotation found', 'no-data');
     }
 
-    // Add rule type icons
-    addRuleIcons();
-
-    // Load stage images with remote fallback
+    // Load stage images with remote fallback (rule icons are emitted inline)
     loadStageImages();
 
     // Flash effect only on actual data refresh, not tab switches
@@ -575,93 +632,30 @@ document.addEventListener('DOMContentLoaded', function() {
         fragment.appendChild(eventDescEl);
       }
 
-      const ruleName = rotation.rule?.name || 'Unknown Mode';
-      const ruleNameEl = document.createElement('div');
-      ruleNameEl.className = 'rule-name';
-      ruleNameEl.textContent = ruleName;
-      fragment.appendChild(ruleNameEl);
+      fragment.appendChild(createRuleNameElement(rotation.rule?.name || 'Unknown Mode'));
 
       const stagesEl = document.createElement('div');
       stagesEl.className = 'stages';
-
       (rotation.stages || []).forEach(stageData => {
-        const stageEl = document.createElement('div');
-        stageEl.className = 'stage';
-
-        const stageName = stageData.name || 'Unknown Stage';
-        const stageImageUrl = stageData.image || null;
-        const stageId = Utils.getStageId(stageName);
-
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'stage-img-container';
-
-        const img = new Image();
-        img.className = 'stage-img';
-        img.dataset.stage = stageId;
-        img.dataset.mode = 'challenge';
-        img.dataset.remoteUrl = stageImageUrl || '';
-        img.alt = stageName;
-        img.src = `images/stages/shared/${stageId}.jpg`;
-
-        imgContainer.appendChild(img);
-        stageEl.appendChild(imgContainer);
-
-        const nameEl = document.createElement('div');
-        nameEl.className = 'stage-name';
-        nameEl.textContent = stageName;
-        stageEl.appendChild(nameEl);
-
-        stagesEl.appendChild(stageEl);
+        stagesEl.appendChild(createStageElement(stageData, 'challenge'));
       });
-
       fragment.appendChild(stagesEl);
     } else if (mode === 'salmon') {
-      // Salmon Run specific logic
-      const stageName = rotation.stage?.name || 'Unknown Stage';
-      const stageImageUrl = rotation.stage?.image || null;
-      const stageId = Utils.getStageId(stageName);
-      const isBigRun = rotation.isBigRun;
-
-      // Create mode info section
+      // Salmon Run: single stage, plus weapons + king salmonid
       const modeInfoEl = document.createElement('div');
       modeInfoEl.className = 'mode-info';
 
-      if (isBigRun) {
+      if (rotation.isBigRun) {
         const bigRunBadge = document.createElement('div');
         bigRunBadge.className = 'big-run-badge';
         bigRunBadge.textContent = 'Big Run';
         modeInfoEl.appendChild(bigRunBadge);
       }
 
-      const ruleNameEl = document.createElement('div');
-      ruleNameEl.className = 'rule-name';
-      ruleNameEl.textContent = 'Salmon Run';
-      modeInfoEl.appendChild(ruleNameEl);
+      modeInfoEl.appendChild(createRuleNameElement('Salmon Run'));
       fragment.appendChild(modeInfoEl);
 
-      // Create stage section
-      const stageEl = document.createElement('div');
-      stageEl.className = 'stage';
-
-      const imgContainer = document.createElement('div');
-      imgContainer.className = 'stage-img-container';
-
-      const img = new Image();
-      img.className = 'stage-img';
-      img.dataset.stage = stageId;
-      img.dataset.mode = 'salmon';
-      img.dataset.remoteUrl = stageImageUrl || '';
-      img.alt = stageName;
-      img.src = `images/stages/salmon/${stageId}.jpg`;
-
-      imgContainer.appendChild(img);
-      stageEl.appendChild(imgContainer);
-
-      const nameEl = document.createElement('div');
-      nameEl.className = 'stage-name';
-      nameEl.textContent = stageName;
-      stageEl.appendChild(nameEl);
-      fragment.appendChild(stageEl);
+      fragment.appendChild(createStageElement(rotation.stage, 'salmon'));
 
       // Create weapons section with images
       const weaponsEl = document.createElement('div');
@@ -747,219 +741,117 @@ document.addEventListener('DOMContentLoaded', function() {
         subLabel.textContent = sub.label;
         subSection.appendChild(subLabel);
 
-        const ruleNameEl = document.createElement('div');
-        ruleNameEl.className = 'rule-name';
-        ruleNameEl.textContent = sub.data.rule?.name || 'Unknown Mode';
-        subSection.appendChild(ruleNameEl);
+        subSection.appendChild(createRuleNameElement(sub.data.rule?.name || 'Unknown Mode'));
 
         const stagesEl = document.createElement('div');
         stagesEl.className = 'stages';
-
         (sub.data.stages || []).forEach(stageData => {
-          const stageEl = document.createElement('div');
-          stageEl.className = 'stage';
-
-          const stageName = stageData.name || 'Unknown Stage';
-          const stageImageUrl = stageData.image || null;
-          const stageId = Utils.getStageId(stageName);
-
-          const imgContainer = document.createElement('div');
-          imgContainer.className = 'stage-img-container';
-
-          const img = new Image();
-          img.className = 'stage-img';
-          img.dataset.stage = stageId;
-          img.dataset.mode = 'anarchy';
-          img.dataset.remoteUrl = stageImageUrl || '';
-          img.alt = stageName;
-          img.src = `images/stages/anarchy/${stageId}.jpg`;
-
-          imgContainer.appendChild(img);
-          stageEl.appendChild(imgContainer);
-
-          const nameEl = document.createElement('div');
-          nameEl.className = 'stage-name';
-          nameEl.textContent = stageName;
-          stageEl.appendChild(nameEl);
-
-          stagesEl.appendChild(stageEl);
+          stagesEl.appendChild(createStageElement(stageData, 'anarchy'));
         });
-
         subSection.appendChild(stagesEl);
         fragment.appendChild(subSection);
       });
     } else {
       // Battle modes (regular, xbattle)
-      const ruleName = rotation.rule?.name || 'Unknown Mode';
-
-      const ruleNameEl = document.createElement('div');
-      ruleNameEl.className = 'rule-name';
-      ruleNameEl.textContent = ruleName;
-      fragment.appendChild(ruleNameEl);
+      fragment.appendChild(createRuleNameElement(rotation.rule?.name || 'Unknown Mode'));
 
       const stagesEl = document.createElement('div');
       stagesEl.className = 'stages';
-
       (rotation.stages || []).forEach(stageData => {
-        const stageEl = document.createElement('div');
-        stageEl.className = 'stage';
-
-        const stageName = stageData.name || 'Unknown Stage';
-        const stageImageUrl = stageData.image || null;
-        const stageId = Utils.getStageId(stageName);
-
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'stage-img-container';
-
-        const img = new Image();
-        img.className = 'stage-img';
-        img.dataset.stage = stageId;
-        img.dataset.mode = mode;
-        img.dataset.remoteUrl = stageImageUrl || '';
-        img.alt = stageName;
-        img.src = `images/stages/${mode}/${stageId}.jpg`;
-
-        imgContainer.appendChild(img);
-        stageEl.appendChild(imgContainer);
-
-        const nameEl = document.createElement('div');
-        nameEl.className = 'stage-name';
-        nameEl.textContent = stageName;
-        stageEl.appendChild(nameEl);
-
-        stagesEl.appendChild(stageEl);
+        stagesEl.appendChild(createStageElement(stageData, mode));
       });
-
       fragment.appendChild(stagesEl);
     }
 
     return fragment;
   }
   
-  /**
-   * Add small rule-type icons before rule names for quick visual identification
-   */
-  function addRuleIcons() {
-    const ruleIconMap = {
-      'turf war': { cls: 'rule-icon-tw', label: 'TW' },
-      'splat zones': { cls: 'rule-icon-sz', label: 'SZ' },
-      'tower control': { cls: 'rule-icon-tc', label: 'TC' },
-      'rainmaker': { cls: 'rule-icon-rm', label: 'RM' },
-      'clam blitz': { cls: 'rule-icon-cb', label: 'CB' },
-    };
+  const RULE_ICON_MAP = {
+    'turf war':      { cls: 'rule-icon-tw', label: 'TW' },
+    'splat zones':   { cls: 'rule-icon-sz', label: 'SZ' },
+    'tower control': { cls: 'rule-icon-tc', label: 'TC' },
+    'rainmaker':     { cls: 'rule-icon-rm', label: 'RM' },
+    'clam blitz':    { cls: 'rule-icon-cb', label: 'CB' }
+  };
 
-    document.querySelectorAll('.rule-name').forEach(el => {
-      const text = el.textContent.toLowerCase().trim();
-      const iconInfo = ruleIconMap[text];
-      if (iconInfo) {
-        const icon = document.createElement('span');
-        icon.className = `rule-icon ${iconInfo.cls}`;
-        icon.textContent = iconInfo.label;
-        el.prepend(icon);
-      }
-    });
+  /**
+   * Build a .rule-name div with the matching rule-type icon prepended.
+   */
+  function createRuleNameElement(ruleName) {
+    const el = document.createElement('div');
+    el.className = 'rule-name';
+    const iconInfo = RULE_ICON_MAP[ruleName.toLowerCase().trim()];
+    if (iconInfo) {
+      const icon = document.createElement('span');
+      icon.className = `rule-icon ${iconInfo.cls}`;
+      icon.textContent = iconInfo.label;
+      el.appendChild(icon);
+    }
+    el.appendChild(document.createTextNode(ruleName));
+    return el;
   }
 
+  // Last-resort 1×1 transparent-ish PNG so a broken image never shows the
+  // browser's default broken-image glyph.
+  const PLACEHOLDER_DATA_URI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABmJLR0QA/wD/AP+gvaeTAAAA30lEQVR4nO3bQQqDMBRAwcbsev9+F92UgimBTCD2zVk8/CJCGgYAAAAAAAD+x3P2AwDSKCRMIWEKCVNImELCFBKmkDCFhCkkTCFhCglTSJhCwhQSppAwhYQpJEwhYQoJU0iYQsIUEqaQMIWEDTP3LnUfbY6/Y+bH6pn7XdvufS9WFPJHrtqfQsIUEqaQMIWEKSRMIWEKCVNImELCFBKmkDCFhO0e+/ed9XPb1b8gCglTSJhCwhQSppAwhYQpJEwhYQoJU0iYQsIUEqaQMIWEKSRMIWEKCVNImELCFBKmEAAAAAAA4GQvNlEPdQq58VQAAAAASUVORK5CYII=';
+
   /**
-   * Load stage images and handle errors with improved fallback chain including remote URLs
+   * Walk an ordered fallback chain on each .stage-img: shared dir → validated
+   * remote URL → bundled placeholder → inline data URI.
    */
   function loadStageImages() {
-    // Data URI fallback for when all image files fail
-    const placeholderDataURI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABmJLR0QA/wD/AP+gvaeTAAAA30lEQVR4nO3bQQqDMBRAwcbsev9+F92UgimBTCD2zVk8/CJCGgYAAAAAAAD+x3P2AwDSKCRMIWEKCVNImELCFBKmkDCFhCkkTCFhCglTSJhCwhQSppAwhYQpJEwhYQoJU0iYQsIUEqaQMIWEDTP3LnUfbY6/Y+bH6pn7XdvufS9WFPJHrtqfQsIUEqaQMIWEKSRMIWEKCVNImELCFBKmkDCFhO0e+/ed9XPb1b8gCglTSJhCwhQSppAwhYQpJEwhYQoJU0iYQsIUEqaQMIWEKSRMIWEKCVNImELCFBKmEAAAAAAA4GQvNlEPdQq58VQAAAAASUVORK5CYII=';
-
     document.querySelectorAll('.stage-img').forEach(img => {
       const stageId = img.dataset.stage;
-      const mode = img.dataset.mode;
-      const remoteUrl = img.dataset.remoteUrl;
-      const originalSrc = img.src;
+      const remoteUrl = img.dataset.remoteUrl; // already origin-validated
 
-      // Set comprehensive error handler with remote fallback
+      const candidates = [];
+      // The initial src already targets mode-specific (or shared, for challenge).
+      // Only add /shared/ as a fallback if we didn't start there.
+      if (!img.src.includes('/shared/')) {
+        candidates.push(`images/stages/shared/${stageId}.jpg`);
+      }
+      if (remoteUrl) candidates.push(remoteUrl);
+      candidates.push('images/stages/placeholder.jpg');
+      candidates.push(PLACEHOLDER_DATA_URI);
+
+      let idx = 0;
       img.onerror = function() {
-        console.debug(`Image failed: ${this.src} | stage: "${stageId}" | mode: "${mode}" | remoteUrl: ${remoteUrl || 'none'}`);
-
-        // First fallback: try shared directory
-        if (!this.src.includes('/shared/') && !this.src.includes('splatoon3.ink')) {
-          console.debug(`Trying shared fallback for: ${stageId}`);
-          this.src = `images/stages/shared/${stageId}.jpg`;
-
-          this.onerror = function() {
-            // Second fallback: try remote URL from API if available
-            if (remoteUrl && !this.src.includes('splatoon3.ink')) {
-              console.debug(`Trying remote URL for: ${stageId} -> ${remoteUrl}`);
-              this.src = remoteUrl;
-
-              this.onerror = function() {
-                // Third fallback: try placeholder file
-                console.debug(`Remote failed for: ${stageId}, trying placeholder`);
-                this.src = 'images/stages/placeholder.jpg';
-
-                this.onerror = function() {
-                  console.warn(`All image fallbacks failed for stage: ${stageId}`);
-                  this.src = placeholderDataURI;
-                  this.title = `Image not available for ${stageId}`;
-                  this.onerror = null;
-                };
-              };
-            } else {
-              // No remote URL, skip to placeholder
-              console.debug(`Shared failed for: ${stageId}, trying placeholder`);
-              this.src = 'images/stages/placeholder.jpg';
-
-              this.onerror = function() {
-                console.warn(`All image fallbacks failed for stage: ${stageId}`);
-                this.src = placeholderDataURI;
-                this.title = `Image not available for ${stageId}`;
-                this.onerror = null;
-              };
-            }
-          };
-        } else if (this.src.includes('splatoon3.ink')) {
-          // Remote URL failed, go to placeholder
-          console.debug(`Remote URL failed for: ${stageId}, trying placeholder`);
-          this.src = 'images/stages/placeholder.jpg';
-
-          this.onerror = function() {
-            console.warn(`All image fallbacks failed for stage: ${stageId}`);
-            this.src = placeholderDataURI;
-            this.title = `Image not available for ${stageId}`;
-            this.onerror = null;
-          };
-        } else {
-          // Already tried shared, go to placeholder
-          this.src = 'images/stages/placeholder.jpg';
-
-          this.onerror = function() {
-            console.warn(`All image fallbacks failed for stage: ${stageId}`);
-            this.src = placeholderDataURI;
-            this.title = `Image not available for ${stageId}`;
-            this.onerror = null;
-          };
+        if (idx >= candidates.length) {
+          console.warn(`All image fallbacks failed for stage: ${stageId}`);
+          this.title = `Image not available for ${stageId}`;
+          this.onerror = null;
+          return;
         }
-      };
-
-      // Log successful image loads for debugging
-      img.onload = function() {
-        if (this.src !== originalSrc) {
-          console.log(`Image loaded successfully using fallback: ${this.src} for stage: ${stageId}`);
-        }
+        this.src = candidates[idx++];
       };
     });
   }
 
   /**
-   * Start/restart the countdown timer
+   * Start/restart the countdown timer. Self-reschedules: per-second when the
+   * shortest visible countdown is under an hour (so "Xm Ys" stays smooth),
+   * once per minute otherwise (h+m display has nothing finer to update).
    */
   function startCountdownTimer() {
-    // Clear any existing interval
-    if (countdownInterval) {
-      clearInterval(countdownInterval);
+    if (countdownTimeout) {
+      clearTimeout(countdownTimeout);
+      countdownTimeout = null;
     }
 
-    // Update countdown immediately
     updateCountdowns();
 
-    // Update every second
-    countdownInterval = setInterval(updateCountdowns, 1000);
+    let minRemaining = Infinity;
+    document.querySelectorAll('.countdown').forEach(el => {
+      const target = el.dataset.endTime || el.dataset.startTime;
+      if (!target) return;
+      const r = new Date(target).getTime() - Date.now();
+      if (r > 0 && r < minRemaining) minRemaining = r;
+    });
+
+    if (minRemaining === Infinity) return;
+
+    const delay = minRemaining < 60 * 60 * 1000 ? 1000 : 60 * 1000;
+    countdownTimeout = setTimeout(startCountdownTimer, delay);
   }
 
   /**
@@ -1008,9 +900,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Clean up intervals when popup closes
+  // Clean up timers when popup closes
   window.addEventListener('beforeunload', () => {
-    if (countdownInterval) clearInterval(countdownInterval);
+    if (countdownTimeout) clearTimeout(countdownTimeout);
     if (refreshCooldownInterval) clearInterval(refreshCooldownInterval);
   });
 

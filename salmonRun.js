@@ -21,9 +21,9 @@ if (typeof Utils === 'undefined') {
 function processSalmonRunData(data) {
   if (!data?.data?.coopGroupingSchedule) {
     console.error("Invalid Salmon Run data format: coopGroupingSchedule missing");
-    return createSalmonRunTestData(); // Fallback to test data
+    return null;
   }
-  
+
   const now = new Date();
   console.log("Processing Salmon Run data with current time:", now.toISOString());
 
@@ -103,61 +103,14 @@ function processSalmonRunData(data) {
     }
   }
 
-  // If we still don't have data, it's a genuine gap in the schedule or API issue.
-  if (!current && !next) {
-    console.warn("No current or upcoming Salmon Run rotations found in API data. Using fallback.");
-    return createSalmonRunTestData();
-  }
-
+  // Either may be null — that's a legitimate state (no current or no upcoming).
+  // The popup renders an empty state from null.
   return { current, next };
-}
-
-/**
- * Create test data for Salmon Run as a fallback
- * @returns {Object} Test data with current and next Salmon Run rotations
- */
-function createSalmonRunTestData() {
-  const now = new Date();
-  const twelveHoursLater = new Date(now.getTime() + 12 * 60 * 60 * 1000);
-  const thirtySixHoursLater = new Date(now.getTime() + 36 * 60 * 60 * 1000);
-  const sixtyHoursLater = new Date(now.getTime() + 60 * 60 * 60 * 1000);
-
-  return {
-    current: {
-      startTime: now.toISOString(),
-      endTime: twelveHoursLater.toISOString(),
-      stage: { name: "Gone Fission Hydroplant", image: null },
-      weapons: [
-        { name: "Splattershot", image: null },
-        { name: "Splat Roller", image: null },
-        { name: "E-liter 4K", image: null },
-        { name: "Splat Dualies", image: null }
-      ],
-      boss: "Cohozuna",
-      bossImage: null,
-      isBigRun: false
-    },
-    next: {
-      startTime: thirtySixHoursLater.toISOString(),
-      endTime: sixtyHoursLater.toISOString(),
-      stage: { name: "Spawning Grounds", image: null },
-      weapons: [
-        { name: "N-ZAP '85", image: null },
-        { name: "Slosher", image: null },
-        { name: "Heavy Splatling", image: null },
-        { name: "Tri-Stringer", image: null }
-      ],
-      boss: "Horrorboros",
-      bossImage: null,
-      isBigRun: false
-    }
-  };
 }
 
 // Export the module
 const SalmonRun = {
-  processSalmonRunData,
-  createSalmonRunTestData
+  processSalmonRunData
 };
 
 // Make SalmonRun available in different contexts

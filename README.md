@@ -22,6 +22,13 @@ A Chrome extension that puts Splatoon 3's current and upcoming map rotations rig
 
 **4-tier image fallback** — Stage images resolve through: mode-specific directory, shared directory, remote API URL, then a data URI placeholder. You'll always see something, even if local images are incomplete.
 
+## Screenshots
+
+<!-- Add screenshots of your extension here -->
+<!-- ![Regular Battle](screenshots/regular.png) -->
+<!-- ![Salmon Run](screenshots/salmon.png) -->
+<!-- ![Settings](screenshots/settings.png) -->
+
 ## Installation
 
 ### Manual (Developer Mode)
@@ -65,18 +72,15 @@ The UI will fall back to Rubik > Arial > sans-serif if the font file is missing.
 │   └── Splatfont2.ttf     # Custom Splatoon typeface (not included)
 └── images/
     ├── icon16/48/128.png  # Extension icons
-    ├── battle-bg-pattern-blue.jpg
+    ├── paper-bg.jpg       # Popup background texture
     ├── paper-tear-overlay.png
     ├── little-buddy.*.png
     ├── salmon-character.png
-    ├── squid.svg
+    ├── squid.svg          # Mask for decorative .squid elements
     ├── sticker-*.png      # Decorative sticker images
     └── stages/
-        ├── regular/       # Regular Battle stage images
-        ├── anarchy/       # Anarchy Battle stage images
-        ├── xbattle/       # X Battle stage images
         ├── salmon/        # Salmon Run stage images
-        ├── shared/        # Fallback stage images (any mode)
+        ├── shared/        # Battle-mode stages (regular/anarchy/xbattle/challenge)
         └── placeholder.jpg
 ```
 
@@ -90,7 +94,7 @@ Stage images are resolved by converting stage names to filesystem-safe IDs:
 "Barnacle & Dime"    →  barnacle_and_dime.jpg
 ```
 
-Place `.jpg` images in the appropriate `images/stages/<mode>/` directories. The `shared/` directory acts as a cross-mode fallback. If no local image exists, the extension tries the remote URL from the API, then falls back to a placeholder.
+All battle modes (Regular, Anarchy, X Battle, Challenge) draw from one identical stage pool in `images/stages/shared/`; Salmon Run uses `images/stages/salmon/`. If no local image exists, the extension tries the remote URL from the API, then falls back to a placeholder.
 
 ## How It Works
 
@@ -143,4 +147,3 @@ This project is licensed under the MIT License.
 
 - [splatoon3.ink](https://splatoon3.ink/) for the rotation data API
 - Nintendo for creating Splatoon 3
-

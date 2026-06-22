@@ -29,66 +29,18 @@ function normalizeStageId(name) {
     .replace(/^_|_$/g, '');            // Remove leading/trailing underscores
 }
 
-// Explicit overrides for stages that don't follow the normalization pattern
-// Only needed for edge cases - most stages work with normalizeStageId()
+// Exceptions where normalizeStageId() doesn't produce the expected image filename.
+// Keyed on the *normalized* form (output of normalizeStageId), so any input
+// the normalizer maps to the same value gets caught here.
 const stageIdOverrides = {
-  // Special cases where the normalized name doesn't match the expected file
+  // "Um'ami Ruins" — apostrophe-strip yields "umami_ruins"; image keeps the split.
   "umami_ruins": "um_ami_ruins",
-  "um_ami_ruins": "um_ami_ruins",
+  // "Salmonid Smokeyard" — image filename is truncated ("smokeyar").
   "salmonid_smokeyard": "salmonid_smokeyar",
-  "salmonid_smokeyar": "salmonid_smokeyar"
-};
-
-// Legacy mapping (kept for backwards compatibility during transition)
-const stageIdMapping = {
-  // Regular/Anarchy/X Battle stages
-  "scorch gorge": "scorch_gorge",
-  "eeltail alley": "eeltail_alley",
-  "hagglefish market": "hagglefish_market",
-  "undertow spillway": "undertow_spillway",
-  "um'ami ruins": "um_ami_ruins",
-  "mincemeat metalworks": "mincemeat_metalworks",
-  "brinewater springs": "brinewater_springs",
-  "barnacle & dime": "barnacle_and_dime",
-  "flounder heights": "flounder_heights",
-  "hammerhead bridge": "hammerhead_bridge",
-  "museum d'alfonsino": "museum_dalfonsino",
-  "mahi-mahi resort": "mahi_mahi_resort",
-  "inkblot art academy": "inkblot_art_academy",
-  "sturgeon shipyard": "sturgeon_shipyard",
-  "makomart": "makomart",
-  "wahoo world": "wahoo_world",
-  "humpback pump track": "humpback_pump_track",
-  "manta maria": "manta_maria",
-  "crableg capital": "crableg_capital",
-  "shipshape cargo co.": "shipshape_cargo_co",
-  "robo rom-en": "robo_rom_en",
-  "bluefin depot": "bluefin_depot",
-  "marlin airport": "marlin_airport",
-  "lemuria hub": "lemuria_hub",
-
-  // Alternative spellings and API variations
-  "umami ruins": "um_ami_ruins",
-  "um ami ruins": "um_ami_ruins",
-  "mako mart": "makomart",
-  "museum dalfonsino": "museum_dalfonsino",
-  "barnacle and dime": "barnacle_and_dime",
-
-  // Salmon Run stages
-  "sockeye station": "sockeye_station",
-  "gone fission hydroplant": "gone_fission_hydroplant",
-  "spawning grounds": "spawning_grounds",
-  "marooner's bay": "marooners_bay",
-  "marooners bay": "marooners_bay",
-  "jammin' salmon junction": "jammin_salmon_junction",
-  "jammin salmon junction": "jammin_salmon_junction",
-  "salmonid smokeyard": "salmonid_smokeyar",
-  "salmonid smokeyar": "salmonid_smokeyar",
-  "bonerattle arena": "bonerattle_arena",
-
-  // Additional variations and potential new stages
-  "grand splatlands bowl": "grand_splatlands_bowl",
-  "splatlands bowl": "grand_splatlands_bowl"
+  // "Mako Mart" / "MakoMart" — API spaces it; image file collapses it.
+  "mako_mart": "makomart",
+  // "Splatlands Bowl" is the short form of Grand Splatlands Bowl.
+  "splatlands_bowl": "grand_splatlands_bowl"
 };
 
 /**
@@ -143,8 +95,9 @@ function formatTimeRange(startTime, endTime) {
 }
 
 /**
- * Get stage image ID from stage name with enhanced error handling
- * Uses automatic normalization for new stages, with legacy mapping fallback
+ * Get stage image ID from stage name. Normalizes via normalizeStageId, then
+ * applies any override from stageIdOverrides for cases where the image
+ * filename doesn't match the normalized form.
  * @param {string} stageName The stage name to convert
  * @returns {string} The stage ID for use in image paths
  */
@@ -153,47 +106,13 @@ function getStageId(stageName) {
     console.warn('getStageId called with empty/null stage name');
     return 'unknown_stage';
   }
-
-  const lowerName = stageName.toLowerCase().trim();
-
-  // 1. Check legacy mapping first (for exact matches)
-  if (stageIdMapping[lowerName]) {
-    return stageIdMapping[lowerName];
-  }
-
-  // 2. Use automatic normalizer
   const normalizedId = normalizeStageId(stageName);
-
-  // 3. Check for override (edge cases)
-  if (stageIdOverrides[normalizedId]) {
-    return stageIdOverrides[normalizedId];
-  }
-
-  // 4. Try legacy mapping with common variations (fallback)
-  const variations = [
-    lowerName.replace(/'/g, ''),
-    lowerName.replace(/'/g, ''),
-    lowerName.replace(/-/g, ' '),
-    lowerName.replace(/\s+/g, ' '),
-    lowerName.replace(/&/g, 'and'),
-  ];
-
-  for (const variation of variations) {
-    if (stageIdMapping[variation]) {
-      console.log(`Stage "${stageName}" matched via variation: "${variation}"`);
-      return stageIdMapping[variation];
-    }
-  }
-
-  // 5. Return normalized ID (works for most new stages automatically!)
-  console.log(`Stage "${stageName}" auto-normalized to: "${normalizedId}"`);
-  return normalizedId;
+  return stageIdOverrides[normalizedId] || normalizedId;
 }
 
 // Export utilities
 const Utils = {
   API,
-  stageIdMapping,
   stageIdOverrides,
   normalizeStageId,
   formatTime,
