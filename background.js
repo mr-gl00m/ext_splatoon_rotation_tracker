@@ -6,35 +6,48 @@
 importScripts('utils.js', 'salmonRun.js');
 
 // Initialize extension
-chrome.runtime.onInstalled.addListener(async (details) => {
+chrome.runtime.onInstalled.addListener((details) => {
+  initializeExtension(details).catch(error => {
+    console.error('Extension initialization failed:', error);
+  });
+});
+
+async function initializeExtension(details) {
   console.log('Splatoon Tracker extension installed/updated:', details.reason);
 
-  // Only set default settings on fresh install, not on update
-  if (details.reason === 'install') {
-    // Check if settings already exist (shouldn't on fresh install, but be safe)
-    const existing = await chrome.storage.sync.get(['enableNotifications']);
-    if (existing.enableNotifications === undefined) {
-      console.log('Setting default notification settings (fresh install)');
-      await chrome.storage.sync.set({
-        'enableNotifications': false,
-        'notifyRegular': false,
-        'notifyAnarchy': false,
-        'notifyXbattle': false,
-        'notifySalmon': false
-      });
+  try {
+    // Set defaults only on a fresh install.
+    if (details.reason === 'install') {
+      const existing = await chrome.storage.sync.get(['enableNotifications']);
+      if (existing.enableNotifications === undefined) {
+        console.log('Setting default notification settings (fresh install)');
+        await chrome.storage.sync.set({
+          'enableNotifications': false,
+          'notifyRegular': false,
+          'notifyAnarchy': false,
+          'notifyXbattle': false,
+          'notifySalmon': false
+        });
+      }
     }
+  } catch (error) {
+    // A sync-storage failure should not prevent the rotation cache from loading.
+    console.error('Failed to initialize notification settings:', error);
   }
 
-  // Initial data fetch — direct call. setTimeout in an MV3 service worker
-  // is unreliable since the worker can be killed before it fires.
-  fetchAllData();
+  // Fetch directly. Chrome can stop an MV3 service worker before a timer fires.
+  await fetchAllData();
+}
+
+chrome.runtime.onStartup.addListener(() => {
+  fetchAllData().catch(error => console.error('Startup data fetch failed:', error));
 });
 
 // Listen for alarm - handles both smart refresh and fallback periodic refresh
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'refreshRotations' || alarm.name === 'smartRefresh') {
     console.log(`Alarm triggered: ${alarm.name}`);
-    fetchAllData();
+    fetchAllData().catch(error => console.error('Alarm data fetch failed:', error));
   }
 });
 
@@ -42,7 +55,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
  * Schedule the next smart refresh based on rotation end times
  * @param {Object} rotationData The current rotation data
  */
-function scheduleNextRefresh(rotationData) {
+async function scheduleNextRefresh(rotationData) {
   const now = Date.now();
   let nextRefreshTime = null;
 
@@ -62,32 +75,40 @@ function scheduleNextRefresh(rotationData) {
     }
   }
 
-  // Clear any existing smart refresh alarm
-  chrome.alarms.clear('smartRefresh');
+  // Clear both one-shot alarms so an earlier fallback cannot cause an extra fetch.
+  await Promise.all([
+    chrome.alarms.clear('smartRefresh'),
+    chrome.alarms.clear('refreshRotations')
+  ]);
 
   if (nextRefreshTime) {
     const delayMinutes = (nextRefreshTime - now) / (60 * 1000);
     console.log(`Scheduling smart refresh in ${delayMinutes.toFixed(1)} minutes (at ${new Date(nextRefreshTime).toLocaleTimeString()})`);
-    chrome.alarms.create('smartRefresh', { when: nextRefreshTime });
+    await chrome.alarms.create('smartRefresh', { when: nextRefreshTime });
   } else {
     // Fallback: if we can't determine the next refresh time, use periodic refresh
     console.log('No valid end time found, falling back to periodic refresh');
-    chrome.alarms.create('refreshRotations', { delayInMinutes: Utils.API.REFRESH_INTERVAL });
+    await chrome.alarms.create('refreshRotations', {
+      delayInMinutes: Utils.API.REFRESH_INTERVAL
+    });
   }
 }
 
 // Message handler
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'fetchRotations') {
+  if (request?.action === 'fetchRotations') {
     fetchAllData()
-      .then(success => sendResponse({ success }))
+      .then(async success => {
+        const { isOffline = false } = await chrome.storage.local.get(['isOffline']);
+        sendResponse({ success, isOffline });
+      })
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Indicates async response
   }
 });
 
 // Dedupe overlapping callers (alarm + popup message + onInstalled) within a
-// single service-worker lifetime — they all join the same in-flight promise.
+// single service-worker lifetime. They all join the same in-flight promise.
 let inFlightFetch = null;
 
 function fetchAllData() {
@@ -103,13 +124,14 @@ function fetchAllData() {
  */
 async function _fetchAllData() {
   console.log('--- Starting data fetch cycle ---');
-  // Read pre-fetch state once; reused both for notification diffing on success
-  // and for the stale-while-revalidate path on failure.
-  const { rotationData: oldRotationData = null } =
-    await chrome.storage.local.get(['rotationData']);
+  let oldRotationData = null;
 
   try {
-    const response = await fetch(Utils.API.SCHEDULES);
+    // Read the old value once for notification diffing and cache fallback.
+    ({ rotationData: oldRotationData = null } =
+      await chrome.storage.local.get(['rotationData']));
+
+    const response = await fetch(Utils.API.SCHEDULES, { cache: 'no-store' });
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     const apiData = await response.json();
 
@@ -134,18 +156,42 @@ async function _fetchAllData() {
     });
     console.log('All rotation data updated successfully in a single operation.');
 
-    scheduleNextRefresh(newRotationData);
-    await sendRotationNotifications(newRotationData, oldRotationData);
+    try {
+      await scheduleNextRefresh(newRotationData);
+    } catch (error) {
+      console.error('Failed to schedule the next refresh:', error);
+      await chrome.alarms.create('refreshRotations', {
+        delayInMinutes: Utils.API.REFRESH_INTERVAL
+      });
+    }
+
+    try {
+      await sendRotationNotifications(newRotationData, oldRotationData);
+    } catch (error) {
+      // Notification failures cannot invalidate data that was already stored.
+      console.error('Failed to send rotation notifications:', error);
+    }
 
     return true;
   } catch (error) {
     console.error("Error in fetchAllData cycle:", error);
 
-    // Stale-while-revalidate using the read we already did at function entry.
-    if (oldRotationData && isDataStillValid(oldRotationData)) {
-      console.log('Network failed, using cached data (stale-while-revalidate)');
+    try {
       await chrome.storage.local.set({ 'isOffline': true });
-      chrome.alarms.create('refreshRotations', { delayInMinutes: 5 });
+    } catch (storageError) {
+      console.error('Failed to mark cached data offline:', storageError);
+    }
+
+    // Retry after every failure, including a failed first run with no cache.
+    try {
+      await chrome.alarms.create('refreshRotations', { delayInMinutes: 5 });
+    } catch (alarmError) {
+      console.error('Failed to schedule a retry:', alarmError);
+    }
+
+    // Use cached data only while at least one stored rotation is still useful.
+    if (oldRotationData && isDataStillValid(oldRotationData)) {
+      console.log('Network failed, using cached data');
       return true;
     }
 
@@ -161,23 +207,13 @@ async function _fetchAllData() {
 function isDataStillValid(rotationData) {
   const now = Date.now();
 
-  // Check if any current rotation hasn't ended yet
-  const modes = ['regular', 'anarchy', 'xbattle', 'salmon'];
+  const modes = ['regular', 'anarchy', 'xbattle', 'challenge', 'salmon'];
   for (const mode of modes) {
-    const current = rotationData?.[mode]?.current;
-    if (current?.endTime) {
-      const endTime = new Date(current.endTime).getTime();
-      if (endTime > now) {
-        return true; // At least one rotation is still valid
+    for (const slot of ['current', 'next']) {
+      const endTime = new Date(rotationData?.[mode]?.[slot]?.endTime).getTime();
+      if (Number.isFinite(endTime) && endTime > now) {
+        return true;
       }
-    }
-  }
-
-  // Also check "next" rotations - if they exist and haven't started yet, data is useful
-  for (const mode of modes) {
-    const next = rotationData?.[mode]?.next;
-    if (next?.startTime) {
-      return true; // We have upcoming rotation data
     }
   }
 
@@ -196,7 +232,13 @@ function validateApiResponse(data) {
   }
 
   const d = data.data;
-  const scheduleKeys = ['regularSchedules', 'bankaraSchedules', 'xSchedules'];
+  const scheduleKeys = [
+    'regularSchedules',
+    'bankaraSchedules',
+    'xSchedules',
+    'eventSchedules',
+    'festSchedules'
+  ];
   for (const key of scheduleKeys) {
     if (d[key] && !Array.isArray(d[key].nodes)) {
       console.error(`API validation failed: ${key}.nodes is not an array`);
@@ -288,6 +330,10 @@ function findCurrentAndNext(nodes, now, mode) {
       const endTime = new Date(node.endTime);
       const startMs = startTime.getTime();
       const endMs = endTime.getTime();
+
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+        continue;
+      }
       
       // Extract rule and stages based on the mode
       let rule = { name: 'Unknown Mode' };
@@ -368,6 +414,10 @@ function findCurrentAndNextAnarchy(nodes, now) {
       const startMs = new Date(node.startTime).getTime();
       const endMs = new Date(node.endTime).getTime();
 
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+        continue;
+      }
+
       const series = extractAnarchyMode(node.bankaraMatchSettings?.[0]);
       const open = extractAnarchyMode(node.bankaraMatchSettings?.[1]);
 
@@ -424,6 +474,10 @@ function processEventSchedules(nodes, now) {
 
       const startMs = new Date(period.startTime).getTime();
       const endMs = new Date(period.endTime).getTime();
+
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+        continue;
+      }
 
       const processedEvent = {
         startTime: period.startTime,
@@ -530,7 +584,7 @@ async function sendRotationNotifications(newRotations, oldRotations) {
 
       const notificationId = `rotation-${modeInfo.key}-${newCurrent.startTime}`;
 
-      chrome.notifications.create(notificationId, {
+      await chrome.notifications.create(notificationId, {
         type: 'basic',
         iconUrl: 'images/icon128.png',
         title: title,

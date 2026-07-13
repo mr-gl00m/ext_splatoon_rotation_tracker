@@ -59,7 +59,7 @@ body {
   border-radius: 5px;
 }
 
-/* Paper tear overlay at the top — kept subtle so it doesn't clash with white text */
+/* Subtle paper tear overlay at the top */
 .container::before {
   content: "";
   position: absolute;
@@ -74,7 +74,7 @@ body {
   opacity: 0.15;
 }
 
-/* Mode-specific styling — flat mode-tinted gradient, no tiled pattern */
+/* Mode-specific styling with a flat tinted gradient and no tiled pattern */
 .container.mode-regular {
   background: linear-gradient(to bottom, #0f1a12, #1a3a21);
 }
@@ -111,7 +111,13 @@ body {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* Little buddy mascot — small corner accent, not behind the title */
+.header h1[role="link"]:focus-visible {
+  outline: 2px solid var(--mode-color);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* Little Buddy mascot as a small corner accent */
 .container::after {
   content: "";
   position: absolute;
@@ -164,6 +170,7 @@ body {
 }
 #regular-tab.active {
   background-color: var(--regular-color);
+  color: #222;
 }
 
 /* Anarchy mode tab */
@@ -172,6 +179,7 @@ body {
 }
 #anarchy-tab.active {
   background-color: var(--anarchy-color);
+  color: #222;
 }
 
 /* X Battle mode tab */
@@ -180,6 +188,7 @@ body {
 }
 #xbattle-tab.active {
   background-color: var(--xbattle-color);
+  color: #222;
 }
 
 /* Challenge mode tab */
@@ -188,6 +197,7 @@ body {
 }
 #challenge-tab.active {
   background-color: var(--challenge-color);
+  color: #222;
 }
 
 /* Salmon Run mode tab */
@@ -196,6 +206,7 @@ body {
 }
 #salmon-tab.active {
   background-color: var(--salmon-color);
+  color: #222;
 }
 
 /* Rotation Container */
@@ -515,9 +526,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
 #refresh-btn {
   background-color: var(--mode-color);
-  color: white;
+  color: #222;
   padding: 6px 10px;
   font-size: 0.8rem;
   font-weight: bold;
@@ -610,6 +626,16 @@ button:disabled {
   height: 0;
 }
 
+.switch input:focus-visible + .slider {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+.switch input:disabled + .slider {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .slider {
   position: absolute;
   cursor: pointer;
@@ -689,7 +715,7 @@ input:checked + .slider:before {
 
 #close-settings-btn {
   background-color: var(--mode-color);
-  color: white;
+  color: #222;
   padding: 8px 20px;
   width: 100%;
 }
@@ -801,7 +827,7 @@ input:checked + .slider:before {
   transform: rotate(5deg);
 }
 
-/* Salmon character — replaces the mascot in salmon mode */
+/* Salmon character replaces the mascot in salmon mode */
 .container.mode-salmon::after {
   content: "";
   position: absolute;
@@ -864,7 +890,7 @@ input:checked + .slider:before {
 }
 
 .rule-icon-tw { background-color: var(--regular-color); color: #222; }
-.rule-icon-sz { background-color: #f54910; color: white; }
+.rule-icon-sz { background-color: #f54910; color: #222; }
 .rule-icon-tc { background-color: #6e00c8; color: white; }
 .rule-icon-rm { background-color: #dbd013; color: #222; }
 .rule-icon-cb { background-color: #0fdb9b; color: #222; }
@@ -940,7 +966,7 @@ input:checked + .slider:before {
   100% { transform: rotate(-1deg); }
 }
 
-/* Apply gentle animation to stickers — slow enough to feel ambient, not distracting */
+/* Apply a slow ambient animation to stickers */
 .sticker {
   animation: subtleWobble 24s ease-in-out infinite;
 }
@@ -948,6 +974,14 @@ input:checked + .slider:before {
 .sticker-1 { animation-delay: -3s; }
 .sticker-2 { animation-delay: -9s; }
 .sticker-3 { animation-delay: -15s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 
 

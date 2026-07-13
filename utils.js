@@ -15,29 +15,28 @@ const API = {
  * @returns {string} Normalized stage ID
  */
 function normalizeStageId(name) {
-  if (!name) return 'unknown_stage';
+  if (typeof name !== 'string') return 'unknown_stage';
 
-  return name
+  const normalized = name
     .toLowerCase()
     .trim()
-    .replace(/[''\u2019]/g, '')        // Remove apostrophes (including smart quotes)
-    .replace(/&/g, 'and')              // Replace & with 'and'
-    .replace(/[.,:;!?]/g, '')          // Remove punctuation
-    .replace(/[-–—]/g, '_')            // Replace dashes with underscores
-    .replace(/\s+/g, '_')              // Replace spaces with underscores
-    .replace(/_+/g, '_')               // Collapse multiple underscores
-    .replace(/^_|_$/g, '');            // Remove leading/trailing underscores
+    .replace(/['\u2018\u2019]/g, '')
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  return normalized || 'unknown_stage';
 }
 
 // Exceptions where normalizeStageId() doesn't produce the expected image filename.
 // Keyed on the *normalized* form (output of normalizeStageId), so any input
 // the normalizer maps to the same value gets caught here.
 const stageIdOverrides = {
-  // "Um'ami Ruins" — apostrophe-strip yields "umami_ruins"; image keeps the split.
+  // "Um'ami Ruins": apostrophe removal yields "umami_ruins"; the image keeps the split.
   "umami_ruins": "um_ami_ruins",
-  // "Salmonid Smokeyard" — image filename is truncated ("smokeyar").
+  // "Salmonid Smokeyard": the image filename is truncated ("smokeyar").
   "salmonid_smokeyard": "salmonid_smokeyar",
-  // "Mako Mart" / "MakoMart" — API spaces it; image file collapses it.
+  // "Mako Mart" / "MakoMart": the API spaces it; the image file collapses it.
   "mako_mart": "makomart",
   // "Splatlands Bowl" is the short form of Grand Splatlands Bowl.
   "splatlands_bowl": "grand_splatlands_bowl"
@@ -107,7 +106,33 @@ function getStageId(stageName) {
     return 'unknown_stage';
   }
   const normalizedId = normalizeStageId(stageName);
-  return stageIdOverrides[normalizedId] || normalizedId;
+  return Object.hasOwn(stageIdOverrides, normalizedId)
+    ? stageIdOverrides[normalizedId]
+    : normalizedId;
+}
+
+/**
+ * Accept an HTTPS image URL hosted by splatoon3.ink or one of its subdomains.
+ * @param {unknown} value Candidate URL
+ * @returns {string} Normalized safe URL, or an empty string
+ */
+function safeSplatoonUrl(value) {
+  if (typeof value !== 'string' || !value) return '';
+
+  try {
+    const parsed = new URL(value);
+    const isAllowedHost = parsed.hostname === 'splatoon3.ink' ||
+      parsed.hostname.endsWith('.splatoon3.ink');
+    const hasCredentials = Boolean(parsed.username || parsed.password);
+
+    if (parsed.protocol === 'https:' && isAllowedHost && !hasCredentials && !parsed.port) {
+      return parsed.toString();
+    }
+  } catch {
+    // Invalid URLs are rejected below.
+  }
+
+  return '';
 }
 
 // Export utilities
@@ -117,7 +142,8 @@ const Utils = {
   normalizeStageId,
   formatTime,
   formatTimeRange,
-  getStageId
+  getStageId,
+  safeSplatoonUrl
 };
 
 // Make utils available in different contexts
@@ -125,4 +151,4 @@ if (typeof window !== 'undefined') {
   window.Utils = Utils;
 } else if (typeof self !== 'undefined') {
   self.Utils = Utils;
-} 
+}

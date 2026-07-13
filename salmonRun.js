@@ -29,8 +29,6 @@ function processSalmonRunData(data) {
 
   let allSchedules = [];
 
-  // +++ REFACTOR: Combine all schedule types into one list first for easier processing.
-  
   // 1. Add Big Run schedules
   const bigRunNodes = data.data.coopGroupingSchedule.bigRunSchedules?.nodes || [];
   for (const schedule of bigRunNodes) {
@@ -89,8 +87,19 @@ function processSalmonRunData(data) {
     const startMs = new Date(schedule.startTime).getTime();
     const endMs = new Date(schedule.endTime).getTime();
 
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      continue;
+    }
+
     if (startMs <= nowMs && endMs > nowMs) {
-      current = schedule;
+      // Big Run takes precedence if the API also reports an overlapping
+      // regular shift. Otherwise, prefer the active shift that started later.
+      const currentStartMs = current ? new Date(current.startTime).getTime() : -Infinity;
+      if (!current ||
+          (schedule.isBigRun && !current.isBigRun) ||
+          (schedule.isBigRun === current.isBigRun && startMs > currentStartMs)) {
+        current = schedule;
+      }
     } else if (startMs > nowMs) {
       // The first one we find that starts in the future is our "next"
       if (!next) {
@@ -103,7 +112,7 @@ function processSalmonRunData(data) {
     }
   }
 
-  // Either may be null — that's a legitimate state (no current or no upcoming).
+  // Either may be null. That is a legitimate state with no current or upcoming shift.
   // The popup renders an empty state from null.
   return { current, next };
 }

@@ -4,23 +4,23 @@ A Chrome extension that puts Splatoon 3's current and upcoming map rotations rig
 
 ## Features
 
-**Five game modes** — Regular Battle, Anarchy Battle (Series + Open), X Battle, Challenge Events, and Salmon Run, each with their own themed tab and color scheme.
+**Five game modes:** Regular Battle, Anarchy Battle (Series + Open), X Battle, Challenge Events, and Salmon Run, each with their own themed tab and color scheme.
 
-**Live countdowns** — Every rotation shows a real-time countdown. When less than 15 minutes remain, the timer pulses yellow to let you know a change is coming.
+**Live countdowns:** Every rotation shows a real-time countdown. When less than 15 minutes remain, the timer pulses yellow to let you know a change is coming.
 
-**Salmon Run details** — Stage, weapon loadout with images, and King Salmonid (boss) display. Big Run events get a special badge.
+**Salmon Run details:** Stage, weapon loadout with images, and King Salmonid (boss) display. Big Run events get a special badge.
 
-**Splatfest banner** — When a Splatfest is active or scheduled, a banner appears at the top showing the theme, teams, and timing.
+**Splatfest banner:** When a Splatfest is active or scheduled, a banner appears at the top showing the theme, teams, and timing.
 
-**Notifications** — Optional per-mode desktop notifications when rotations change. Configure exactly which modes you care about.
+**Notifications:** Optional per-mode desktop notifications when rotations change. Configure exactly which modes you care about.
 
-**Smart refresh** — The extension schedules its next data fetch 1 minute after the current rotation ends, so you always see fresh data without unnecessary polling. A 30-minute fallback ensures data stays current even if scheduling misses.
+**Smart refresh:** The extension schedules its next data fetch 1 minute after the current rotation ends, so you see fresh data without unnecessary polling. A 30-minute fallback keeps data current if scheduling misses.
 
-**Offline support** — If the network is unavailable, cached rotation data is served with a visible offline indicator. The extension retries automatically.
+**Offline support:** If the network is unavailable, cached rotation data is served with a visible offline indicator. The extension retries automatically.
 
-**Splatoon-styled UI** — Custom Splatfont2 typography, ink-splat transitions between tabs, mode-colored backgrounds with subtle texture, animated stickers, and decorative elements matching Splatoon 3's aesthetic.
+**Splatoon-styled UI:** Custom Splatfont2 typography, ink-splat transitions between tabs, mode-colored backgrounds with subtle texture, animated stickers, and decorative elements matching Splatoon 3's aesthetic.
 
-**4-tier image fallback** — Stage images resolve through: mode-specific directory, shared directory, remote API URL, then a data URI placeholder. You'll always see something, even if local images are incomplete.
+**Image fallback chain:** Stage images try bundled JPG and PNG assets, the shared stage directory, a validated remote API URL, the bundled placeholder, and an inline fallback.
 
 ## Screenshots
 
@@ -37,23 +37,23 @@ A Chrome extension that puts Splatoon 3's current and upcoming map rotations rig
 2. Open Chrome and go to `chrome://extensions/`
 3. Enable **Developer mode** (toggle in the top right)
 4. Click **Load unpacked** and select the extension folder
-5. The extension icon appears in your toolbar — click it to open
+5. The extension icon appears in your toolbar. Click it to open.
 
 ### Font Setup
 
-The extension uses the Splatfont2 typeface for an authentic look. Place `Splatfont2.ttf` in the `fonts/` directory:
+The extension uses the bundled Splatfont2 typeface for an authentic look. It expects the file at:
 
 ```
 fonts/Splatfont2.ttf
 ```
 
-The UI will fall back to Rubik > Arial > sans-serif if the font file is missing.
+The UI falls back to Rubik, Arial, or sans-serif if the font file is missing.
 
 ## Usage
 
 1. **Click the extension icon** to open the popup
-2. **Switch tabs** to browse different game modes — your last tab is remembered
-3. **View rotations** — current and next, with stages, rules, time ranges, and live countdowns
+2. **Switch tabs** to browse different game modes. Your last tab is remembered.
+3. **View rotations** for current and next schedules, with stages, rules, time ranges, and live countdowns
 4. **Click the title** to open [splatoon3.ink](https://splatoon3.ink) in a new tab
 5. **Hit Refresh** to manually fetch new data (30-second cooldown to avoid API spam)
 6. **Open Settings** (gear icon) to configure which modes send desktop notifications
@@ -62,14 +62,16 @@ The UI will fall back to Rubik > Arial > sans-serif if the font file is missing.
 
 ```
 ├── manifest.json          # Chrome Extension manifest (MV3)
-├── background.js          # Service worker — data fetching, alarms, notifications
+├── background.js          # Service worker: data fetching, alarms, notifications
 ├── popup.html             # Extension popup markup
-├── popup.js               # Popup UI logic — tabs, display, countdown timers
-├── utils.js               # Shared utilities — time formatting, stage ID mapping
+├── popup.js               # Popup UI logic: tabs, display, countdown timers
+├── utils.js               # Shared utilities: time formatting, stage ID mapping
 ├── salmonRun.js           # Salmon Run data processor (regular + Big Run)
-├── styles.css             # All styling — themes, animations, layout
+├── styles.css             # All styling: themes, animations, layout
 ├── fonts/
-│   └── Splatfont2.ttf     # Custom Splatoon typeface (not included)
+│   └── Splatfont2.ttf     # Custom Splatoon typeface
+├── tests/
+│   └── extension.test.js  # Zero-dependency regression tests
 └── images/
     ├── icon16/48/128.png  # Extension icons
     ├── paper-bg.jpg       # Popup background texture
@@ -100,12 +102,12 @@ All battle modes (Regular, Anarchy, X Battle, Challenge) draw from one identical
 
 ### Data Flow
 
-1. **`background.js`** fetches `splatoon3.ink/data/schedules.json` — a single API call for all data
+1. **`background.js`** fetches `splatoon3.ink/data/schedules.json` with a single API call for all data
 2. Battle rotations are processed by `processRotationData()`, Salmon Run by `SalmonRun.processSalmonRunData()`
 3. Results are merged into one object and written to `chrome.storage.local` in a single operation
 4. The service worker schedules the next fetch via `chrome.alarms` based on the earliest rotation end time
 5. **`popup.js`** reads from storage on open and renders the current tab's data
-6. A 1-second interval updates countdown timers; when a rotation ends, an auto-refresh fires
+6. Countdown timers update each second under one hour and each minute otherwise. When a rotation ends, an auto-refresh fires.
 
 ### Notifications
 
@@ -134,6 +136,8 @@ All rotation data comes from [splatoon3.ink](https://splatoon3.ink/), an unoffic
 ## Contributing
 
 Contributions are welcome! Feel free to open issues or submit pull requests.
+
+Run the regression suite with `node --test tests/extension.test.js` before submitting a change.
 
 ### Adding New Stages
 

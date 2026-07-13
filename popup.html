@@ -14,18 +14,20 @@
     <div class="sticker sticker-small sticker-3"></div>
     
     <div class="header">
-      <h1>Splatoon 3 Rotations</h1>
-      <button id="settings-btn" class="gear-button" aria-label="Settings">⚙</button>
+      <h1 role="link" tabindex="0">Splatoon 3 Rotations</h1>
+      <button id="settings-btn" class="gear-button" aria-label="Settings"
+              aria-expanded="false" aria-controls="settings-panel">⚙</button>
     </div>
     
-    <div id="splatfest-banner" class="splatfest-banner" style="display: none;"></div>
+    <div id="splatfest-banner" class="splatfest-banner" style="display: none;"
+         aria-live="polite"></div>
 
     <div class="mode-tabs">
-      <button id="regular-tab" class="tab-btn active" data-mode="regular">Regular</button>
-      <button id="anarchy-tab" class="tab-btn" data-mode="anarchy">Anarchy</button>
-      <button id="xbattle-tab" class="tab-btn" data-mode="xbattle">X Battle</button>
-      <button id="challenge-tab" class="tab-btn" data-mode="challenge">Challenge</button>
-      <button id="salmon-tab" class="tab-btn" data-mode="salmon">Salmon Run</button>
+      <button id="regular-tab" class="tab-btn active" data-mode="regular" aria-pressed="true">Regular</button>
+      <button id="anarchy-tab" class="tab-btn" data-mode="anarchy" aria-pressed="false">Anarchy</button>
+      <button id="xbattle-tab" class="tab-btn" data-mode="xbattle" aria-pressed="false">X Battle</button>
+      <button id="challenge-tab" class="tab-btn" data-mode="challenge" aria-pressed="false">Challenge</button>
+      <button id="salmon-tab" class="tab-btn" data-mode="salmon" aria-pressed="false">Salmon Run</button>
     </div>
     
     <div class="rotation-container">
@@ -41,14 +43,15 @@
     </div>
     
     <!-- Settings Panel (Hidden by default) -->
-    <div id="settings-panel" class="settings-panel">
-      <div class="settings-title">Notification Settings</div>
+    <div id="settings-panel" class="settings-panel" role="dialog" aria-modal="true"
+         aria-labelledby="settings-title" aria-hidden="true">
+      <div id="settings-title" class="settings-title">Notification Settings</div>
       
       <div class="toggle-group">
         <div class="toggle-label">
-          <span>Enable all notifications</span>
+          <span>Enable notifications</span>
           <label class="switch">
-            <input type="checkbox" id="enable-notifications">
+            <input type="checkbox" id="enable-notifications" aria-label="Enable notifications">
             <span class="slider"></span>
           </label>
         </div>
@@ -60,7 +63,7 @@
         <div class="toggle-label">
           <span>Regular Battle</span>
           <label class="switch regular-slider">
-            <input type="checkbox" id="notify-regular">
+            <input type="checkbox" id="notify-regular" aria-label="Regular Battle notifications">
             <span class="slider"></span>
           </label>
         </div>
@@ -68,7 +71,7 @@
         <div class="toggle-label">
           <span>Anarchy Battle</span>
           <label class="switch anarchy-slider">
-            <input type="checkbox" id="notify-anarchy">
+            <input type="checkbox" id="notify-anarchy" aria-label="Anarchy Battle notifications">
             <span class="slider"></span>
           </label>
         </div>
@@ -76,7 +79,7 @@
         <div class="toggle-label">
           <span>X Battle</span>
           <label class="switch xbattle-slider">
-            <input type="checkbox" id="notify-xbattle">
+            <input type="checkbox" id="notify-xbattle" aria-label="X Battle notifications">
             <span class="slider"></span>
           </label>
         </div>
@@ -84,7 +87,7 @@
         <div class="toggle-label">
           <span>Salmon Run</span>
           <label class="switch salmon-slider">
-            <input type="checkbox" id="notify-salmon">
+            <input type="checkbox" id="notify-salmon" aria-label="Salmon Run notifications">
             <span class="slider"></span>
           </label>
         </div>

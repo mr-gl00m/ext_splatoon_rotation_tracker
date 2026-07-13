@@ -5,6 +5,7 @@
   "minimum_chrome_version": "114",
   "description": "Tracks and displays current and upcoming level rotations in Splatoon 3",
   "action": {
+    "default_title": "Splatoon 3 Rotation Tracker",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "images/icon16.png",

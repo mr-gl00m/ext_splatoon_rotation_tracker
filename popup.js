@@ -43,8 +43,17 @@ document.addEventListener('DOMContentLoaded', function() {
   if (elements.title) {
     elements.title.style.cursor = 'pointer';
     elements.title.title = 'Visit splatoon3.ink';
-    elements.title.addEventListener('click', function() {
-      chrome.tabs.create({ url: 'https://splatoon3.ink' });
+    const openDataSource = () => {
+      chrome.tabs.create({ url: 'https://splatoon3.ink' }).catch(error => {
+        console.error('Failed to open data source:', error);
+      });
+    };
+    elements.title.addEventListener('click', openDataSource);
+    elements.title.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openDataSource();
+      }
     });
   }
   
@@ -64,31 +73,65 @@ document.addEventListener('DOMContentLoaded', function() {
   (async () => {
     await restoreLastTab();
     await loadSettings();
-    displayRotationData();
+    const hasData = await displayRotationData();
+    if (!hasData) {
+      await refreshData({ bypassCooldown: true });
+    }
   })();
   
   // Event listeners
   if (elements.refreshBtn) {
-    elements.refreshBtn.addEventListener('click', refreshData);
+    elements.refreshBtn.addEventListener('click', () => refreshData());
   }
   
   if (elements.settingsBtn) {
-    elements.settingsBtn.addEventListener('click', function() {
-      if (elements.settingsPanel) {
-        elements.settingsPanel.classList.add('visible');
-      }
-    });
+    elements.settingsBtn.addEventListener('click', () => setSettingsOpen(true));
   }
   
   if (elements.closeSettingsBtn) {
-    elements.closeSettingsBtn.addEventListener('click', function() {
-      if (elements.settingsPanel) {
-        elements.settingsPanel.classList.remove('visible');
-      }
-    });
+    elements.closeSettingsBtn.addEventListener('click', () => setSettingsOpen(false));
   }
-  
 
+  document.addEventListener('keydown', event => {
+    const settingsAreOpen = elements.settingsPanel?.classList.contains('visible');
+    if (event.key === 'Escape' && settingsAreOpen) {
+      setSettingsOpen(false);
+      return;
+    }
+
+    if (event.key === 'Tab' && settingsAreOpen) {
+      const focusable = [...elements.settingsPanel.querySelectorAll(
+        'button:not(:disabled), input:not(:disabled)'
+      )];
+      const first = focusable[0];
+      const last = focusable.at(-1);
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' &&
+        (changes.rotationData || changes.lastUpdated || changes.isOffline) &&
+        !isRefreshing) {
+      if (changes.isOffline?.newValue === false) {
+        hasTriggeredAutoRefresh = false;
+      }
+      displayRotationData();
+    }
+
+    if (areaName === 'sync' &&
+        (changes.enableNotifications || changes.notifyRegular ||
+         changes.notifyAnarchy || changes.notifyXbattle || changes.notifySalmon)) {
+      loadSettings();
+    }
+  });
   
   // Handle tab buttons
   elements.tabButtons.forEach(button => {
@@ -96,8 +139,12 @@ document.addEventListener('DOMContentLoaded', function() {
       currentMode = this.dataset.mode;
 
       // Update active state
-      elements.tabButtons.forEach(btn => btn.classList.remove('active'));
+      elements.tabButtons.forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+      });
       this.classList.add('active');
+      this.setAttribute('aria-pressed', 'true');
 
       // Update background with ink transition
       if (elements.container) {
@@ -109,7 +156,9 @@ document.addEventListener('DOMContentLoaded', function() {
       updateBackgroundForMode(currentMode);
 
       // Persist tab selection
-      chrome.storage.local.set({ lastTab: currentMode });
+      chrome.storage.local.set({ lastTab: currentMode }).catch(error => {
+        console.error('Failed to save the selected tab:', error);
+      });
 
       // Re-display data for the new mode
       displayRotationData();
@@ -137,6 +186,24 @@ document.addEventListener('DOMContentLoaded', function() {
       checkbox.addEventListener('change', saveNotificationSettings);
     }
   });
+
+  /**
+   * Open or close the settings dialog and keep focus in a useful place.
+   * @param {boolean} isOpen Whether the dialog should be visible
+   */
+  function setSettingsOpen(isOpen) {
+    if (!elements.settingsPanel) return;
+
+    elements.settingsPanel.classList.toggle('visible', isOpen);
+    elements.settingsPanel.setAttribute('aria-hidden', String(!isOpen));
+    elements.settingsBtn?.setAttribute('aria-expanded', String(isOpen));
+
+    if (isOpen) {
+      elements.notificationsCheckbox?.focus();
+    } else {
+      elements.settingsBtn?.focus();
+    }
+  }
   
   /**
    * Add decorative elements to the popup
@@ -191,21 +258,6 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   /**
-   * Reject API-supplied URLs that aren't HTTPS splatoon3.ink before they
-   * touch the DOM. CSP blocks the load anyway; this is defense in depth.
-   */
-  function safeRemoteUrl(url) {
-    if (!url) return '';
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === 'https:' && parsed.hostname.endsWith('splatoon3.ink')) {
-        return parsed.toString();
-      }
-    } catch { /* malformed URL */ }
-    return '';
-  }
-
-  /**
    * Build a single stage tile (image + name) for any mode.
    * @param {Object} stageData {name, image} from the rotation
    * @param {string} mode The logical mode (regular/anarchy/xbattle/salmon/challenge)
@@ -214,7 +266,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const stageEl = document.createElement('div');
     stageEl.className = 'stage';
 
-    const stageName = stageData?.name || 'Unknown Stage';
+    const stageName = typeof stageData?.name === 'string' && stageData.name.trim()
+      ? stageData.name.trim()
+      : 'Unknown Stage';
     const stageId = Utils.getStageId(stageName);
     const dir = STAGE_DIR_BY_MODE[mode] || 'shared';
 
@@ -225,7 +279,8 @@ document.addEventListener('DOMContentLoaded', function() {
     img.className = 'stage-img';
     img.dataset.stage = stageId;
     img.dataset.mode = mode;
-    img.dataset.remoteUrl = safeRemoteUrl(stageData?.image);
+    img.dataset.remoteUrl = Utils.safeSplatoonUrl(stageData?.image);
+    img.referrerPolicy = 'no-referrer';
     img.alt = stageName;
     img.src = `images/stages/${dir}/${stageId}.jpg`;
     imgContainer.appendChild(img);
@@ -234,6 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const nameEl = document.createElement('div');
     nameEl.className = 'stage-name';
     nameEl.textContent = stageName;
+    nameEl.title = stageName;
     stageEl.appendChild(nameEl);
 
     return stageEl;
@@ -248,9 +304,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const validModes = ['regular', 'anarchy', 'xbattle', 'challenge', 'salmon'];
       if (data.lastTab && validModes.includes(data.lastTab)) {
         currentMode = data.lastTab;
-        elements.tabButtons.forEach(btn => btn.classList.remove('active'));
+        elements.tabButtons.forEach(btn => {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-pressed', 'false');
+        });
         const targetBtn = document.querySelector(`[data-mode="${currentMode}"]`);
-        if (targetBtn) targetBtn.classList.add('active');
+        if (targetBtn) {
+          targetBtn.classList.add('active');
+          targetBtn.setAttribute('aria-pressed', 'true');
+        }
         updateBackgroundForMode(currentMode);
         isFirstLoad = false;
       }
@@ -425,12 +487,15 @@ document.addEventListener('DOMContentLoaded', function() {
       // Display rotation data
       if (data.rotationData) {
         updateRotationDisplay(data.rotationData);
+        return true;
       } else {
         showLoadingState();
+        return false;
       }
     } catch (error) {
       console.error('Failed to display rotation data:', error);
       showLoadingState();
+      return false;
     }
   }
   
@@ -478,9 +543,9 @@ document.addEventListener('DOMContentLoaded', function() {
   /**
    * Refresh data from the API with rate limiting
    */
-  async function refreshData(bypassCooldown = false) {
-    // Prevent spamming - button is already disabled during cooldown
-    // Auto-refresh (rotation end) bypasses cooldown to ensure timely updates
+  async function refreshData({ bypassCooldown = false } = {}) {
+    // Prevent duplicate popup requests while a refresh is already in progress.
+    if (isRefreshing) return;
     if (!bypassCooldown && elements.refreshBtn.disabled) return;
 
     isRefreshing = true;
@@ -491,8 +556,14 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       const response = await chrome.runtime.sendMessage({ action: 'fetchRotations' });
       if (response?.success) {
-        hasTriggeredAutoRefresh = false;
+        // Keep the guard raised while cached, ended data is rendered. This
+        // prevents an offline response from starting another immediate fetch.
+        hasTriggeredAutoRefresh = true;
         await displayRotationData();
+        isRefreshing = false;
+        if (!response.isOffline) {
+          hasTriggeredAutoRefresh = false;
+        }
         startRefreshCooldown(30);
       } else {
         throw new Error(response?.error || 'Unknown error during refresh.');
@@ -575,7 +646,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Flash effect only on actual data refresh, not tab switches
     if (isRefreshing) {
-      isRefreshing = false;
       [elements.currentRotation, elements.nextRotation].forEach(el => {
         el.classList.add('refresh-flash');
         setTimeout(() => el.classList.remove('refresh-flash'), 600);
@@ -670,11 +740,13 @@ document.addEventListener('DOMContentLoaded', function() {
           const weaponEl = document.createElement('div');
           weaponEl.className = 'weapon';
 
-          if (weaponImage) {
+          const safeWeaponImage = Utils.safeSplatoonUrl(weaponImage);
+          if (safeWeaponImage) {
             const weaponImg = new Image();
             weaponImg.className = 'weapon-img';
-            weaponImg.src = weaponImage;
+            weaponImg.src = safeWeaponImage;
             weaponImg.alt = weaponName || 'Weapon';
+            weaponImg.referrerPolicy = 'no-referrer';
             weaponImg.onerror = function() {
               // Hide image on error, show text only
               this.style.display = 'none';
@@ -708,11 +780,13 @@ document.addEventListener('DOMContentLoaded', function() {
         bossLabel.textContent = 'King Salmonid: ';
         bossEl.appendChild(bossLabel);
 
-        if (rotation.bossImage) {
+        const safeBossImage = Utils.safeSplatoonUrl(rotation.bossImage);
+        if (safeBossImage) {
           const bossImg = new Image();
           bossImg.className = 'boss-img';
-          bossImg.src = rotation.bossImage;
+          bossImg.src = safeBossImage;
           bossImg.alt = rotation.boss;
+          bossImg.referrerPolicy = 'no-referrer';
           bossImg.onerror = function() {
             this.style.display = 'none';
           };
@@ -778,37 +852,44 @@ document.addEventListener('DOMContentLoaded', function() {
    * Build a .rule-name div with the matching rule-type icon prepended.
    */
   function createRuleNameElement(ruleName) {
+    const displayName = typeof ruleName === 'string' && ruleName.trim()
+      ? ruleName.trim()
+      : 'Unknown Mode';
     const el = document.createElement('div');
     el.className = 'rule-name';
-    const iconInfo = RULE_ICON_MAP[ruleName.toLowerCase().trim()];
+    const ruleKey = displayName.toLowerCase();
+    const iconInfo = Object.hasOwn(RULE_ICON_MAP, ruleKey)
+      ? RULE_ICON_MAP[ruleKey]
+      : null;
     if (iconInfo) {
       const icon = document.createElement('span');
       icon.className = `rule-icon ${iconInfo.cls}`;
       icon.textContent = iconInfo.label;
       el.appendChild(icon);
     }
-    el.appendChild(document.createTextNode(ruleName));
+    el.appendChild(document.createTextNode(displayName));
     return el;
   }
 
-  // Last-resort 1×1 transparent-ish PNG so a broken image never shows the
+  // Last-resort transparent PNG so a broken image never shows the
   // browser's default broken-image glyph.
   const PLACEHOLDER_DATA_URI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABmJLR0QA/wD/AP+gvaeTAAAA30lEQVR4nO3bQQqDMBRAwcbsev9+F92UgimBTCD2zVk8/CJCGgYAAAAAAAD+x3P2AwDSKCRMIWEKCVNImELCFBKmkDCFhCkkTCFhCglTSJhCwhQSppAwhYQpJEwhYQoJU0iYQsIUEqaQMIWEDTP3LnUfbY6/Y+bH6pn7XdvufS9WFPJHrtqfQsIUEqaQMIWEKSRMIWEKCVNImELCFBKmkDCFhO0e+/ed9XPb1b8gCglTSJhCwhQSppAwhYQpJEwhYQoJU0iYQsIUEqaQMIWEKSRMIWEKCVNImELCFBKmEAAAAAAA4GQvNlEPdQq58VQAAAAASUVORK5CYII=';
 
   /**
-   * Walk an ordered fallback chain on each .stage-img: shared dir → validated
-   * remote URL → bundled placeholder → inline data URI.
+   * Walk the ordered fallback chain for every stage image.
    */
   function loadStageImages() {
     document.querySelectorAll('.stage-img').forEach(img => {
       const stageId = img.dataset.stage;
       const remoteUrl = img.dataset.remoteUrl; // already origin-validated
+      const dir = STAGE_DIR_BY_MODE[img.dataset.mode] || 'shared';
 
       const candidates = [];
-      // The initial src already targets mode-specific (or shared, for challenge).
-      // Only add /shared/ as a fallback if we didn't start there.
-      if (!img.src.includes('/shared/')) {
+      // The initial source is the local JPG. Some bundled stages use PNG.
+      candidates.push(`images/stages/${dir}/${stageId}.png`);
+      if (dir !== 'shared') {
         candidates.push(`images/stages/shared/${stageId}.jpg`);
+        candidates.push(`images/stages/shared/${stageId}.png`);
       }
       if (remoteUrl) candidates.push(remoteUrl);
       candidates.push('images/stages/placeholder.jpg');
@@ -896,7 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (anyEnded && !hasTriggeredAutoRefresh) {
       hasTriggeredAutoRefresh = true;
       console.log('Rotation ended, auto-refreshing data...');
-      refreshData(true);
+      refreshData({ bypassCooldown: true });
     }
   }
 
