@@ -143,6 +143,18 @@ Run the regression suite with `node --test tests/extension.test.js` before submi
 
 Most new stages work automatically via the `normalizeStageId()` function in `utils.js`. If a stage name doesn't normalize correctly, add an entry to `stageIdOverrides` and place the corresponding image in `images/stages/shared/`.
 
+## Support
+
+If my work is interesting or useful to you, consider tossing something my way; it goes toward rent, food, and energy drinks, and every bit is genuinely appreciated.
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/mr_gl00m)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub_Sponsors-EA4AAA?style=for-the-badge&logo=github&logoColor=white)](https://github.com/sponsors/mr-gl00m)
+
+**Crypto:**
+- BTC: ```bc1qnedeq3dr2dmlwgmw2mr5mtpxh45uhl395prr0d```
+- ETH: ```0x1bCbBa9854dA4Fc1Cb95997D5f42006055282e3c```
+- SOL: ```3Wm8wS93UpG2CrZsMWHSspJh7M5gQ6NXBbgLHDFXmAdQ```
+
 ## License
 
 This project is licensed under the MIT License.
